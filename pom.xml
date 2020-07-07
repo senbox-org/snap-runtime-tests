@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.esa.snap</groupId>
+    <artifactId>snap-runtime-tests</artifactId>
+    <version>8.0.0-SNAPSHOT</version>
+
+    <packaging>nbm</packaging>
+
+    <name>SNAP general runtime Tests</name>
+    <description>SNAP general runtime performance and integration Tests
+    </description>
+
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <snap.version>8.0.0-SNAPSHOT</snap.version>
+        <netbeans.version>RELEASE82</netbeans.version>
+        <jackson.version>2.10.0</jackson.version>
+
+        <snap.test.version>8.0.0-SNAPSHOT</snap.test.version>
+        <s3tbx.test.version>8.0.0-SNAPSHOT</s3tbx.test.version>
+        <s2tbx.test.version>8.0.0-SNAPSHOT</s2tbx.test.version>
+        <s1tbx.test.version>8.0.0-SNAPSHOT</s1tbx.test.version>
+        <rstb.test.version>8.0.0-SNAPSHOT</rstb.test.version>
+        <iceye.test.version>8.0.0-SNAPSHOT</iceye.test.version>
+        <seadas-reader.test.version>1.9-SNAPSHOT</seadas-reader.test.version>
+        <smos.test.version>5.7.0-SNAPSHOT</smos.test.version>
+
+        <max.memory>-Xmx5g</max.memory>
+    </properties>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.esa.snap</groupId>
+            <artifactId>snap-core</artifactId>
+            <version>${snap.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.esa.snap</groupId>
+            <artifactId>snap-core</artifactId>
+            <version>${snap.test.version}</version>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.esa.snap</groupId>
+            <artifactId>snap-envi-reader</artifactId>
+            <version>${snap.version}</version>
+        </dependency>
+
+
+    </dependencies>
+
+
+    <repositories>
+        <repository>
+            <id>snap-repo-public</id>
+            <name>Public Maven Repository for SNAP</name>
+            <url>https://snap-build-server.tilaa.cloud/nexus/repository/snap-maven-public/</url>
+            <releases>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>snap-repo-public</id>
+            <name>Public Maven Repository for SNAP</name>
+            <url>https://snap-build-server.tilaa.cloud/nexus/repository/snap-maven-public/</url>
+            <releases>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <distributionManagement>
+        <repository>
+            <id>snap-repo-public</id>
+            <name>Public Maven Repository for SNAP</name>
+            <url>https://snap-build-server.tilaa.cloud/nexus/repository/snap-maven-releases/</url>
+            <uniqueVersion>false</uniqueVersion>
+        </repository>
+        <snapshotRepository>
+            <id>snap-repo-public</id>
+            <name>Public Maven Snapshot Repository for SNAP</name>
+            <url>https://snap-build-server.tilaa.cloud/nexus/repository/snap-maven-snapshot/</url>
+            <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.2</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <debug>true</debug>
+                    <encoding>UTF-8</encoding>
+                    <excludes>
+                        <exclude>.gitignore</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.0.0-M2</version>
+                <executions>
+                    <execution>
+                        <id>enforce-versions</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>[3.2.5,)</version>
+                                </requireMavenVersion>
+                                <requireJavaVersion>
+                                    <version>1.8</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M3</version>
+                <configuration>
+                    <!--
+                         Force reader tests to run with minimum recommended configuration : 5G RAM
+                    -->
+                    <argLine>${max.memory}</argLine>
+                    <!--
+                         If enabled some assertions in GeoTools fail.
+                         Disabling helps to have a successful build.
+                         But it might indicate some problem.
+                    -->
+                    <enableAssertions>false</enableAssertions>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>1.10</version>
+                <executions>
+                    <execution>
+                        <id>regex-property</id>
+                        <goals>
+                            <goal>regex-property</goal>
+                        </goals>
+                        <configuration>
+                            <name>snap.nbmSpecVersion</name>
+                            <value>${project.version}</value>
+                            <regex>-SNAPSHOT</regex>
+                            <replacement>.0</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.netbeans.utilities</groupId>
+                <artifactId>nbm-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <version>4.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>nbm</goal>
+                            <goal>cluster</goal>
+                            <goal>autoupdate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.5</version>
+                <configuration>
+                    <useDefaultManifestFile>true</useDefaultManifestFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>jar</goal>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>2.8.2</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>versions-maven-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <allowSnapshots>true</allowSnapshots> <!-- in general allow them -->
+                    <properties>
+                        <property>
+                            <name>smos.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[5.0.0,5.9.9)</version>
+                        </property>
+                        <property>
+                            <name>s1tbx.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0,8.9.9)</version>
+                        </property>
+                        <property>
+                            <name>rstb.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0,8.9.9)</version>
+                        </property>
+                        <property>
+                            <name>s2tbx.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0,8.9.9)</version>
+                        </property>
+                        <property>
+                            <name>s3tbx.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0,8.9.9)</version>
+                        </property>
+                        <property>
+                            <name>snap.test.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0,8.9.9)</version>
+                        </property>
+                        <property>
+                            <name>snap.version</name>
+                            <banSnapshots>false</banSnapshots>
+                            <version>[8.0.0-SNAPSHOT]</version>
+                        </property>
+                    </properties>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <!-- Generate reports -->
+    <reporting>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-report-plugin</artifactId>
+                <version>3.0.0-M1</version>
+                <configuration>
+                    <showSuccess>true</showSuccess>
+                </configuration>
+            </plugin>
+        </plugins>
+    </reporting>
+</project>
+
