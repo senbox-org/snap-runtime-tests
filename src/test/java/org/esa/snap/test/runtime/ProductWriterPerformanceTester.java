@@ -55,18 +55,6 @@ public class ProductWriterPerformanceTester {
         tester.run(commandLine);
     }
 
-    private File prepareFileSystem() throws IOException {
-        final String target_dir = properties.getProperty("target_dir");
-        if (StringUtils.isNullOrEmpty(target_dir)){
-            throw new IllegalArgumentException("Target directory not defined.");
-        }
-        final File testDir = new File(target_dir);
-        if (!testDir.mkdirs()) {
-            throw new IOException("unable to create test dir: " + target_dir);
-        }
-        return testDir;
-    }
-
     private static void cleanUpandPrepareForNext(File testDir) throws IOException, InterruptedException {
         if (!FileUtils.deleteTree(testDir)) {
             throw new IOException("unable to delete test dir");
@@ -79,8 +67,63 @@ public class ProductWriterPerformanceTester {
         }
     }
 
-    private void write_band(Product product, File targetFile) throws IOException {
+    private static Product createProduct() {
+        final int rasterWidth = 8000;
+        final int rasterHeight = 12000;
+        final Product product = new Product("test", "perf-test", rasterWidth, rasterHeight);
+
+        for (int i = 0; i < 5; i++) {
+            final Band floatBand = new Band("float_" + i, ProductData.TYPE_FLOAT32, rasterWidth, rasterHeight);
+            floatBand.setRasterData(ProductData.createInstance(createFloatArray(rasterWidth, rasterHeight)));
+            floatBand.setNoDataValue(Float.NaN);
+            floatBand.setNoDataValueUsed(true);
+            product.addBand(floatBand);
+        }
+
+        return product;
+    }
+
+    private static float[] createFloatArray(int rasterWidth, int rasterHeight) {
+        final float[] floats = new float[rasterWidth * rasterHeight];
+        for (int i = 0; i < floats.length; i++) {
+            floats[i] = i;
+        }
+        return floats;
+    }
+
+    private static Options createOptions() {
+        final Options options = new Options();
+
+        OptionBuilder.hasArg();
+        OptionBuilder.withArgName("writer-format");
+        OptionBuilder.withDescription("The product writer format name to be tested.");
+        OptionBuilder.isRequired();
+        options.addOption(OptionBuilder.create("w"));
+
+        OptionBuilder.hasArg();
+        OptionBuilder.withArgName("reader-format");
+        OptionBuilder.withDescription("The product reader format name used for verification. If left empty, no verification is performed.");
+        options.addOption(OptionBuilder.create("r"));
+
+        return options;
+    }
+
+    private File prepareFileSystem() throws IOException {
+        final String target_dir = properties.getProperty("target_dir");
+        if (StringUtils.isNullOrEmpty(target_dir)) {
+            throw new IllegalArgumentException("Target directory not defined.");
+        }
+        final File testDir = new File(target_dir);
+        if (!testDir.mkdirs()) {
+            throw new IOException("unable to create test dir: " + target_dir);
+        }
+        return testDir;
+    }
+
+    private File write_band(Product product, File testDir) throws IOException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test" + dotExtension);
 
         final StopWatch stopWatch = new StopWatch();
 
@@ -96,10 +139,14 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write bands                  " + stopWatch.getTimeDiffString());
+
+        return targetFile;
     }
 
-    private void write_multithreaded_band(Product product, File targetFile) throws IOException, ExecutionException, InterruptedException {
+    private File write_multithreaded_band(Product product, File testDir) throws IOException, ExecutionException, InterruptedException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test_mt" + dotExtension);
 
         final StopWatch stopWatch = new StopWatch();
 
@@ -133,10 +180,14 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write bands multi            " + stopWatch.getTimeDiffString());
+
+        return targetFile;
     }
 
-    private void write_lines_band_sequential(Product product, File targetFile) throws IOException {
+    private File write_lines_band_sequential(Product product, File testDir) throws IOException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test_per_line_band" + dotExtension);
 
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
@@ -161,10 +212,14 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write line band sequential   " + stopWatch.getTimeDiffString());
+
+        return targetFile;
     }
 
-    private void write_lines_band_interleaved(Product product, File targetFile) throws IOException {
+    private File write_lines_band_interleaved(Product product, File testDir) throws IOException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test_line_band_inter" + dotExtension);
 
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
@@ -188,14 +243,18 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write line band interleaved  " + stopWatch.getTimeDiffString());
+
+        return targetFile;
     }
 
     private ProductWriter createWriter() {
         return ProductIO.getProductWriter(writerFormat);
     }
 
-    private void write_tiles_band_sequential(Product product, File targetFile) throws IOException {
+    private File write_tiles_band_sequential(Product product, File testDir) throws IOException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test_tiles_per_band" + dotExtension);
 
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
@@ -242,8 +301,6 @@ public class ProductWriterPerformanceTester {
                         int destPos = line * tileWidth;
                         System.arraycopy(rawData, srcPos, data, destPos, tileWidth);
                     }
-
-//                    System.out.println("x, y, w, h: " + offsetX + "    " + writeOffsetY + "    " + tileWidth + "    " + tileHeight);
                     writer.writeBandRasterData(band, offsetX, writeOffsetY, tileWidth, tileHeight, ProductData.createInstance(data), ProgressMonitor.NULL);
                 }
             }
@@ -253,10 +310,14 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write tiles band sequential  " + stopWatch.getTimeDiffString());
+
+        return targetFile;
     }
 
-    private void write_tiles_band_interleaved(Product product, File targetFile) throws IOException {
+    private File write_tiles_band_interleaved(Product product, File testDir) throws IOException {
         final ProductWriter writer = createWriter();
+        final String dotExtension = writer.getWriterPlugIn().getDefaultFileExtensions()[0];
+        final File targetFile = new File(testDir, "test_tiles_band_inter" + dotExtension);
 
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
@@ -313,47 +374,8 @@ public class ProductWriterPerformanceTester {
 
         stopWatch.stop();
         System.out.println("write tiles band interleaved " + stopWatch.getTimeDiffString());
-    }
 
-    private static Product createProduct() {
-        final int rasterWidth = 8000;
-        final int rasterHeight = 12000;
-        final Product product = new Product("test", "perf-test", rasterWidth, rasterHeight);
-
-        for (int i = 0; i < 5; i++) {
-            final Band floatBand = new Band("float_" + i, ProductData.TYPE_FLOAT32, rasterWidth, rasterHeight);
-            floatBand.setRasterData(ProductData.createInstance(createFloatArray(rasterWidth, rasterHeight)));
-            floatBand.setNoDataValue(Float.NaN);
-            floatBand.setNoDataValueUsed(true);
-            product.addBand(floatBand);
-        }
-
-        return product;
-    }
-
-    private static float[] createFloatArray(int rasterWidth, int rasterHeight) {
-        final float[] floats = new float[rasterWidth * rasterHeight];
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = i;
-        }
-        return floats;
-    }
-
-    private static Options createOptions() {
-        final Options options = new Options();
-
-        OptionBuilder.hasArg();
-        OptionBuilder.withArgName("writer-format");
-        OptionBuilder.withDescription("The product writer format name to be tested.");
-        OptionBuilder.isRequired();
-        options.addOption(OptionBuilder.create("w"));
-
-        OptionBuilder.hasArg();
-        OptionBuilder.withArgName("reader-format");
-        OptionBuilder.withDescription("The product reader format name used for verification. If left empty, no verification is performed.");
-        options.addOption(OptionBuilder.create("r"));
-
-        return options;
+        return targetFile;
     }
 
     private void run(CommandLine cmdLine) throws IOException, InterruptedException, ExecutionException {
@@ -363,36 +385,30 @@ public class ProductWriterPerformanceTester {
         final Product product = createProduct();
 
         try {
-            File targetFile = new File(testDir, "test.dim");
-            write_band(product, targetFile);
+            File targetFile = write_band(product, testDir);
             assertContent(product, targetFile);
 
             cleanUpandPrepareForNext(testDir);
 
-            targetFile = new File(testDir, "test_mt_band.dim");
-            write_multithreaded_band(product, targetFile);
+            targetFile = write_multithreaded_band(product, testDir);
             assertContent(product, targetFile);
 
             cleanUpandPrepareForNext(testDir);
 
-            targetFile = new File(testDir, "test_per_line_band.dim");
-            write_lines_band_sequential(product, targetFile);
+            targetFile = write_lines_band_sequential(product, testDir);
             assertContent(product, targetFile);
 
             cleanUpandPrepareForNext(testDir);
 
-            targetFile = new File(testDir, "test_line_band_inter.dim");
-            write_lines_band_interleaved(product, targetFile);
+            targetFile = write_lines_band_interleaved(product, testDir);
             assertContent(product, targetFile);
 
             cleanUpandPrepareForNext(testDir);
 
-            targetFile = new File(testDir, "test_tiles_per_band.dim");
-            write_tiles_band_sequential(product, targetFile);
+            targetFile = write_tiles_band_sequential(product, testDir);
             assertContent(product, targetFile);
 
-            targetFile = new File(testDir, "test_tiles_band_inter.dim");
-            write_tiles_band_interleaved(product, targetFile);
+            targetFile = write_tiles_band_interleaved(product, testDir);
             assertContent(product, targetFile);
         } finally {
             product.dispose();
@@ -420,7 +436,10 @@ public class ProductWriterPerformanceTester {
 
         final int width = referenceProduct.getSceneRasterWidth();
         final int height = referenceProduct.getSceneRasterHeight();
-        final Product product = ProductIO.readProduct(targetFile);
+        final Product product = ProductIO.readProduct(targetFile, readerFormat);
+        if (product == null) {
+            throw new IOException("Unable to read file: " + targetFile.getAbsolutePath());
+        }
 
         try {
             final Band[] bands = referenceProduct.getBands();
