@@ -20,4 +20,7 @@ During the tests, a number of common cases is checked for performance. These are
 
 The write times are recorded on the console. Optionally a content verification is 
 done on a configurable number of random locations.
+
+A configuration file as resource allows to configure parameters. Please copy "writer_tester_example.properties"
+to "writer_tester.properties" and set your configuration.
  
