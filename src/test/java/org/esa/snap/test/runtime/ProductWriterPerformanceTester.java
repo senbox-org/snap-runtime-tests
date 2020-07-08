@@ -64,7 +64,7 @@ public class ProductWriterPerformanceTester {
         tester.run(commandLine);
     }
 
-    private static void cleanUpandPrepareForNext(File testDir) throws IOException, InterruptedException {
+    private static void cleanUpAndPrepareForNext(File testDir) throws IOException, InterruptedException {
         if (!FileUtils.deleteTree(testDir)) {
             throw new IOException("unable to delete test dir");
         }
@@ -77,7 +77,13 @@ public class ProductWriterPerformanceTester {
     }
 
     private static float[] createFloatArray(int rasterWidth, int rasterHeight) {
+        long size = (long) rasterWidth * rasterHeight;
+        if (size > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("The result of the multiplication (rasterWidth * rasterHeight) is greater than Integer.MAX_VALUE and can therefore not be used as initial size for an java array.");
+        }
+
         final float[] floats = new float[rasterWidth * rasterHeight];
+
         for (int i = 0; i < floats.length; i++) {
             floats[i] = i;
         }
@@ -266,8 +272,8 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / tileWidth + 1;
-        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        final int numTilesH = sceneRasterWidth / tileWidth + (sceneRasterWidth % tileWidth > 0 ? 1 : 0);
+        final int numTilesV = sceneRasterHeight / tileHeight + (sceneRasterHeight % tileHeight > 0 ? 1 : 0);
         final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
@@ -332,8 +338,8 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / tileWidth + 1;
-        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        final int numTilesH = sceneRasterWidth / tileWidth + (sceneRasterWidth % tileWidth > 0 ? 1 : 0);
+        final int numTilesV = sceneRasterHeight / tileHeight + (sceneRasterHeight % tileHeight > 0 ? 1 : 0);
         final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
@@ -400,22 +406,22 @@ public class ProductWriterPerformanceTester {
             File targetFile = write_band(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_multithreaded_band(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_lines_band_sequential(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_lines_band_interleaved(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_tiles_band_sequential(product, testDir);
             assertContent(product, targetFile);
