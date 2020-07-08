@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -64,11 +65,12 @@ public class ProductWriterPerformanceTester {
         tester.run(commandLine);
     }
 
-    private static void cleanUpandPrepareForNext(File testDir) throws IOException, InterruptedException {
+    private static void cleanUpAndPrepareForNext(File testDir) throws IOException, InterruptedException {
         if (!FileUtils.deleteTree(testDir)) {
             throw new IOException("unable to delete test dir");
         }
 
+        // Why this sleep is needed ?
         Thread.sleep(100);
 
         if (!testDir.mkdirs()) {
@@ -77,7 +79,11 @@ public class ProductWriterPerformanceTester {
     }
 
     private static float[] createFloatArray(int rasterWidth, int rasterHeight) {
-        final float[] floats = new float[rasterWidth * rasterHeight];
+        long size = (long) rasterWidth * rasterHeight;
+        if (size > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("The result of the multiplication (rasterWidth * rasterHeight) is greater than Interger.MAX_VALUE and can therefore not be used as initial size for an java array.");
+        }
+        final float[] floats = new float[(int) size];
         for (int i = 0; i < floats.length; i++) {
             floats[i] = i;
         }
@@ -266,8 +272,10 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / tileWidth + 1;
-        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        // Without changes this would fail if sceneRasterWidth is divisible by tileWidth without rest.
+        final int numTilesH = sceneRasterWidth / tileWidth + (sceneRasterWidth % tileWidth > 0 ? 1 : 0);
+        // Without changes this would fail if sceneRasterHeight is divisible by tileHeight without rest.
+        final int numTilesV = sceneRasterHeight / tileHeight + (sceneRasterHeight % tileHeight > 0 ? 1 : 0);
         final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
@@ -332,8 +340,10 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / tileWidth + 1;
-        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        // Without changes this would fail if sceneRasterWidth is divisible by tileWidth without rest.
+        final int numTilesH = sceneRasterWidth / tileWidth + (sceneRasterWidth % tileWidth > 0 ? 1 : 0);
+        // Without changes this would fail if sceneRasterHeight is divisible by tileHeight without rest.
+        final int numTilesV = sceneRasterHeight / tileHeight + (sceneRasterHeight % tileHeight > 0 ? 1 : 0);
         final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
@@ -390,6 +400,8 @@ public class ProductWriterPerformanceTester {
         return targetFile;
     }
 
+    // writing tiles multithreaded is missing
+
     private void run(CommandLine cmdLine) throws IOException, InterruptedException, ExecutionException {
         initialize(cmdLine);
 
@@ -400,22 +412,22 @@ public class ProductWriterPerformanceTester {
             File targetFile = write_band(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_multithreaded_band(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_lines_band_sequential(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_lines_band_interleaved(product, testDir);
             assertContent(product, targetFile);
 
-            cleanUpandPrepareForNext(testDir);
+            cleanUpAndPrepareForNext(testDir);
 
             targetFile = write_tiles_band_sequential(product, testDir);
             assertContent(product, targetFile);
@@ -493,6 +505,8 @@ public class ProductWriterPerformanceTester {
                 final ProductData expectedBuffer = ProductData.createInstance(new float[1]);
                 final ProductData actualBuffer = ProductData.createInstance(new float[1]);
 
+                // Why only test 100 positions?
+                // Why not band.readRasterDataFully() and check allthe values?
                 for (int i = 0; i < 100; i++) {
                     final int x = (int) Math.floor(Math.random() * width);
                     final int y = (int) Math.floor(Math.random() * height);
