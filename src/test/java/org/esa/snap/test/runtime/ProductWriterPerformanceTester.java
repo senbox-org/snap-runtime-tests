@@ -28,16 +28,25 @@ import java.util.concurrent.Future;
 
 public class ProductWriterPerformanceTester {
 
-    private static int TILE_WIDTH = 512;
-    private static int TILE_HEIGHT = 512;
+    private static int TILE_WIDTH_DEFAULT = 512;
+    private static int TILE_HEIGHT_DEFAULT = 512;
+
+    private static int RASTER_WIDTH_DEFAULT = 8000;
+    private static int RASTER_HEIGHT_DEFAULT = 12000;
+
     private String writerFormat;
     private String readerFormat;
+    private int rasterWidth;
+    private int rasterHeight;
+    private int tileWidth;
+    private int tileHeight;
+
     private Properties properties;
 
     /**
      * Executes a Product writer performance test and dumps the result to the console window.
      * <p>
-     * This test creates a 8000x12000 pixel in-memory product and writes it to disk using different strategies.
+     * This test creates an in-memory product and writes it to disk using different strategies.
      *
      * @param args commandline arguments
      *             -w <format-name> : the writer format name
@@ -67,22 +76,6 @@ public class ProductWriterPerformanceTester {
         }
     }
 
-    private static Product createProduct() {
-        final int rasterWidth = 8000;
-        final int rasterHeight = 12000;
-        final Product product = new Product("test", "perf-test", rasterWidth, rasterHeight);
-
-        for (int i = 0; i < 5; i++) {
-            final Band floatBand = new Band("float_" + i, ProductData.TYPE_FLOAT32, rasterWidth, rasterHeight);
-            floatBand.setRasterData(ProductData.createInstance(createFloatArray(rasterWidth, rasterHeight)));
-            floatBand.setNoDataValue(Float.NaN);
-            floatBand.setNoDataValueUsed(true);
-            product.addBand(floatBand);
-        }
-
-        return product;
-    }
-
     private static float[] createFloatArray(int rasterWidth, int rasterHeight) {
         final float[] floats = new float[rasterWidth * rasterHeight];
         for (int i = 0; i < floats.length; i++) {
@@ -106,6 +99,20 @@ public class ProductWriterPerformanceTester {
         options.addOption(OptionBuilder.create("r"));
 
         return options;
+    }
+
+    private Product createProduct() {
+        final Product product = new Product("test", "perf-test", rasterWidth, rasterHeight);
+
+        for (int i = 0; i < 5; i++) {
+            final Band floatBand = new Band("float_" + i, ProductData.TYPE_FLOAT32, rasterWidth, rasterHeight);
+            floatBand.setRasterData(ProductData.createInstance(createFloatArray(rasterWidth, rasterHeight)));
+            floatBand.setNoDataValue(Float.NaN);
+            floatBand.setNoDataValueUsed(true);
+            product.addBand(floatBand);
+        }
+
+        return product;
     }
 
     private File prepareFileSystem() throws IOException {
@@ -259,9 +266,9 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / TILE_WIDTH + 1;
-        final int numTilesV = sceneRasterHeight / TILE_HEIGHT + 1;
-        final float[] tileData = new float[TILE_WIDTH * TILE_HEIGHT];
+        final int numTilesH = sceneRasterWidth / tileWidth + 1;
+        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
 
@@ -276,32 +283,35 @@ public class ProductWriterPerformanceTester {
             final float[] rawData = (float[]) band.getRasterData().getElems();
 
             for (int tileRow = 0; tileRow < numTilesV; tileRow++) {
-                int writeOffsetY = tileRow * TILE_HEIGHT;
-                int tileHeight = TILE_HEIGHT;
+                int writeOffsetY = tileRow * tileHeight;
 
+                int currTileHeight = tileHeight;
                 if (tileRow == lastRowIndex) {
-                    tileHeight = sceneRasterHeight - (lastRowIndex * TILE_HEIGHT);
+                    currTileHeight = sceneRasterHeight - (lastRowIndex * currTileHeight);
                 }
 
                 final int tileRowOffset = writeOffsetY * sceneRasterWidth;
                 for (int tileLine = 0; tileLine < numTilesH; tileLine++) {
-                    final int offsetX = tileLine * TILE_WIDTH;
+                    final int offsetX = tileLine * tileWidth;
 
-                    int tileWidth = TILE_WIDTH;
                     float[] data = tileData;
+                    int currTileWidth = this.tileWidth;
                     if (tileLine == lastLineIndex) {
-                        tileWidth = sceneRasterWidth - (lastLineIndex * TILE_WIDTH);
+                        currTileWidth = sceneRasterWidth - (lastLineIndex * tileWidth);
+                        if (currTileWidth == 0) {
+                            continue;
+                        }
                     }
                     if (tileLine == lastLineIndex || tileRow == lastRowIndex) {
-                        data = new float[tileWidth * tileHeight];
+                        data = new float[currTileWidth * currTileHeight];
                     }
 
-                    for (int line = 0; line < tileHeight; line++) {
+                    for (int line = 0; line < currTileHeight; line++) {
                         int srcPos = offsetX + line * sceneRasterWidth + tileRowOffset;
-                        int destPos = line * tileWidth;
-                        System.arraycopy(rawData, srcPos, data, destPos, tileWidth);
+                        int destPos = line * currTileWidth;
+                        System.arraycopy(rawData, srcPos, data, destPos, currTileWidth);
                     }
-                    writer.writeBandRasterData(band, offsetX, writeOffsetY, tileWidth, tileHeight, ProductData.createInstance(data), ProgressMonitor.NULL);
+                    writer.writeBandRasterData(band, offsetX, writeOffsetY, currTileWidth, currTileHeight, ProductData.createInstance(data), ProgressMonitor.NULL);
                 }
             }
         }
@@ -322,9 +332,9 @@ public class ProductWriterPerformanceTester {
         final int sceneRasterWidth = product.getSceneRasterWidth();
         final int sceneRasterHeight = product.getSceneRasterHeight();
 
-        final int numTilesH = sceneRasterWidth / TILE_WIDTH + 1;
-        final int numTilesV = sceneRasterHeight / TILE_HEIGHT + 1;
-        final float[] tileData = new float[TILE_WIDTH * TILE_HEIGHT];
+        final int numTilesH = sceneRasterWidth / tileWidth + 1;
+        final int numTilesV = sceneRasterHeight / tileHeight + 1;
+        final float[] tileData = new float[tileWidth * tileHeight];
 
         final StopWatch stopWatch = new StopWatch();
 
@@ -336,36 +346,38 @@ public class ProductWriterPerformanceTester {
         final int lastRowIndex = numTilesV - 1;
 
         for (int tileRow = 0; tileRow < numTilesV; tileRow++) {
-            int writeOffsetY = tileRow * TILE_HEIGHT;
-            int tileHeight = TILE_HEIGHT;
+            int writeOffsetY = tileRow * tileHeight;
 
+            int currTileHeight = tileHeight;
             if (tileRow == lastRowIndex) {
-                tileHeight = sceneRasterHeight - (lastRowIndex * TILE_HEIGHT);
+                currTileHeight = sceneRasterHeight - (lastRowIndex * tileHeight);
             }
 
             final int tileRowOffset = writeOffsetY * sceneRasterWidth;
             for (int tileLine = 0; tileLine < numTilesH; tileLine++) {
                 for (final Band band : bands) {
                     final float[] rawData = (float[]) band.getRasterData().getElems();
-                    final int offsetX = tileLine * TILE_WIDTH;
+                    final int offsetX = tileLine * tileWidth;
 
-                    int tileWidth = TILE_WIDTH;
+                    int currTileWidth = tileWidth;
                     float[] data = tileData;
                     if (tileLine == lastLineIndex) {
-                        tileWidth = sceneRasterWidth - (lastLineIndex * TILE_WIDTH);
+                        currTileWidth = sceneRasterWidth - (lastLineIndex * tileWidth);
+                        if (currTileWidth == 0) {
+                            continue;
+                        }
                     }
                     if (tileLine == lastLineIndex || tileRow == lastRowIndex) {
-                        data = new float[tileWidth * tileHeight];
+                        data = new float[currTileWidth * currTileHeight];
                     }
 
-                    for (int line = 0; line < tileHeight; line++) {
+                    for (int line = 0; line < currTileHeight; line++) {
                         int srcPos = offsetX + line * sceneRasterWidth + tileRowOffset;
-                        int destPos = line * tileWidth;
-                        System.arraycopy(rawData, srcPos, data, destPos, tileWidth);
+                        int destPos = line * currTileWidth;
+                        System.arraycopy(rawData, srcPos, data, destPos, currTileWidth);
                     }
 
-//                    System.out.println("x, y, w, h: " + offsetX + "    " + writeOffsetY + "    " + tileWidth + "    " + tileHeight);
-                    writer.writeBandRasterData(band, offsetX, writeOffsetY, tileWidth, tileHeight, ProductData.createInstance(data), ProgressMonitor.NULL);
+                    writer.writeBandRasterData(band, offsetX, writeOffsetY, currTileWidth, currTileHeight, ProductData.createInstance(data), ProgressMonitor.NULL);
                 }
             }
         }
@@ -427,6 +439,37 @@ public class ProductWriterPerformanceTester {
         properties = new Properties();
         properties.load(propertiesStream);
         propertiesStream.close();
+
+        rasterWidth = RASTER_WIDTH_DEFAULT;
+        final String rasterWidthProp = properties.getProperty("raster_width");
+        if (StringUtils.isNotNullAndNotEmpty(rasterWidthProp)) {
+            rasterWidth = Integer.parseInt(rasterWidthProp.trim());
+        }
+
+        rasterHeight = RASTER_HEIGHT_DEFAULT;
+        final String rasterHeightProp = properties.getProperty("raster_height");
+        if (StringUtils.isNotNullAndNotEmpty(rasterHeightProp)) {
+            rasterHeight = Integer.parseInt(rasterHeightProp.trim());
+        }
+
+        tileWidth = TILE_WIDTH_DEFAULT;
+        final String tileWidthProp = properties.getProperty("tile_width");
+        if (StringUtils.isNotNullAndNotEmpty(tileWidthProp)) {
+            tileWidth = Integer.parseInt(tileWidthProp.trim());
+        }
+
+        tileHeight = TILE_HEIGHT_DEFAULT;
+        final String tileHeightProp = properties.getProperty("tile_height");
+        if (StringUtils.isNotNullAndNotEmpty(tileHeightProp)) {
+            tileHeight = Integer.parseInt(tileHeightProp.trim());
+        }
+
+        System.out.println("raster width  = " + rasterWidth);
+        System.out.println("raster height = " + rasterHeight);
+
+        System.out.println("tile width    = " + tileWidth);
+        System.out.println("tile height   = " + tileHeight);
+        System.out.println("--------------------------");
     }
 
     private void assertContent(Product referenceProduct, File targetFile) throws IOException {
